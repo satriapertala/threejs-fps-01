@@ -1,13 +1,27 @@
-// Keyboard and mouse, and the pointer lock that turns the mouse into look. Plain browser
-// APIs only: the game asks the canvas for pointer lock and reads movementX/Y while it holds it.
-export function createInput(canvas, onLockChange) {
+// Keyboard and mouse, and the pointer lock that turns the mouse into look. Also the single
+// home of one-shot key edges (buy menu, weapon switch, grenade throw) read by the sim.
+export function createInput(canvas, onLockChange, hooks) {
   const keys = new Set();
   const state = { keys, locked: false, firing: false, lookX: 0, lookY: 0 };
 
+  const PRESS_HOOKS = {
+    Digit1: () => hooks.switchWeapon(0),
+    Digit2: () => hooks.switchWeapon(1),
+    Digit3: () => hooks.switchWeapon(2),
+    KeyG: () => hooks.throwGrenade(),
+    KeyB: () => hooks.toggleBuy(),
+    KeyE: () => hooks.interact(),
+    KeyR: () => hooks.reload(),
+  };
+
   function setKey(event, down) {
-    if (down) keys.add(event.code);
-    else keys.delete(event.code);
-    if (event.code === 'Space') event.preventDefault();
+    if (down) {
+      keys.add(event.code);
+      if (state.locked && PRESS_HOOKS[event.code]) PRESS_HOOKS[event.code]();
+    } else {
+      keys.delete(event.code);
+    }
+    if (event.code === 'Space' || event.code === 'KeyE' || event.code === 'Tab') event.preventDefault();
   }
 
   window.addEventListener('keydown', (event) => setKey(event, true));
@@ -24,6 +38,7 @@ export function createInput(canvas, onLockChange) {
   window.addEventListener('mouseup', (event) => {
     if (event.button === 0) state.firing = false;
   });
+  window.addEventListener('wheel', () => {}, { passive: true });
   document.addEventListener('pointerlockchange', () => {
     state.locked = document.pointerLockElement === canvas;
     if (!state.locked) {
@@ -44,6 +59,9 @@ export function createInput(canvas, onLockChange) {
       state.lookX = 0;
       state.lookY = 0;
       return { x, y };
+    },
+    down(code) {
+      return keys.has(code);
     },
   };
 }
